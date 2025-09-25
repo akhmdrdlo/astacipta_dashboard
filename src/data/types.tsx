@@ -1,5 +1,12 @@
 // src/types/index.ts
 
+// Tipe BARU untuk komponen Roadmap
+export interface Roadmap {
+  id: number;
+  judulRoadmap: string;
+  roadmap: string; // Akan berisi URL gambar
+}
+
 // Tipe untuk Mitra yang sudah bekerja sama
 export interface Mitra {
   logoInstansi: string;
@@ -19,25 +26,29 @@ export interface MitraPotensialTeknologi {
 
 // Tipe untuk Pasar Potensial
 export interface PasarPotensial {
-  namaPasar: string;
-  logoPasar: string;
-  potensiPendapatan: number;
+  namaInstansi: string;
+  logoInstansi: string;
+  potensiPasar: string;
 }
 
 // Tipe untuk Produk Unggulan
 export interface ProdukUnggulan {
-  id: string;
+  id: number;
+  documentId: string;
   programSlug: string;
   namaProduk: string;
-  gambarProduk: string;
+  gambarProduk: string[];
   deskripsiProduk: string;
   spesifikasiTeknis: string;
   keunggulanKompetitif: string;
+  linkInformasi: string;
+  lampiran: string[]; 
 }
 
 // Tipe utama untuk Program
 export interface Program {
   id: number;
+  updatedAt: string;
   namaProgram: string;
   slug: string;
   PICProgram: string;
@@ -45,10 +56,8 @@ export interface Program {
   gambarUtama: string;
   deskripsiLengkap: string;
   cakupanProgram: string;
-  visualisasiCakupan: string;
+  Roadmap: Roadmap[];
   daftarMitra: Mitra[];
-  judulRoadmap: string;
-  gambarRoadmap: string;
   anggaran: number;
   sumberDana: string;
   daftarMitraPotensial: MitraPotensialTeknologi[];

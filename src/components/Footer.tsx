@@ -37,9 +37,9 @@ export const Footer = () => {
         <div className="md:text-right">
           <h4 className="font-bold mb-2">Media Sosial</h4>
           <div className="flex justify-center md:justify-end space-x-4">
-            <Link href="#" className="text-gray-400 hover:text-white transition-colors">Instagram</Link>
-            <Link href="#" className="text-gray-400 hover:text-white transition-colors">LinkedIn</Link>
-            <Link href="#" className="text-gray-400 hover:text-white transition-colors">Youtube</Link>
+            <Link href="https://www.instagram.com/lenindustri?igsh=MXY2d3pwZ3B0c3dwag==" className="text-gray-400 hover:text-white transition-colors">Instagram</Link>
+            <Link href="https://www.linkedin.com/company/lenindustri/" className="text-gray-400 hover:text-white transition-colors">LinkedIn</Link>
+            <Link href="https://youtube.com/@lenindustriofficial?si=h63ik5aFiC9uWn37" className="text-gray-400 hover:text-white transition-colors">Youtube</Link>
           </div>
         </div>
       </div>

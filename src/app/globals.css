@@ -47,3 +47,30 @@
     animation: marquee-right 50s linear infinite;
   }
 }
+
+/* === TAMBAHAN BARU UNTUK ANIMASI MODAL === */
+@layer utilities {
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scale-up {
+    from { transform: scale(0.95) translateY(10px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+  .animate-scale-up {
+    animation: scale-up 0.3s ease-out forwards;
+  }
+}
+
+/* Kustomisasi untuk scrollbar jika diperlukan */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
