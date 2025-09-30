@@ -2,7 +2,7 @@
 
 import { Program,ProdukUnggulan} from '@/data/types';
 
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || 'http://localhost:1337';
+const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || '';
 const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
 // --- Tipe Data Internal ---
