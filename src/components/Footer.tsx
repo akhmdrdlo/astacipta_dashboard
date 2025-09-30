@@ -14,7 +14,7 @@ export const Footer = () => {
         {/* Kolom Kiri: Info Perusahaan */}
         <div className="flex flex-col md:flex-row items-center gap-4">
           <Image 
-            src="/assets-web/logo Len White.png" 
+            src="/assets-web/Logo Len White.png" 
             alt="Logo PT. Len Industri" 
             width={100} 
             height={40} 
