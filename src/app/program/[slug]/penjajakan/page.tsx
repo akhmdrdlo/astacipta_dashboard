@@ -121,7 +121,6 @@ export default function PenjajakanPage() {
           {/* Bagian Carousel Partner */}
           <div className="mt-16"><PartnerCarousel program={program}/></div>
           <div className="p-8 space-y-16">
-            {/* Bagian Produk Unggulan */}
             {/* Bagian Produk Program */}
             <section>
               <h2 className="text-3xl font-bold text-center text-gray-800 mb-10">Produk Program</h2>

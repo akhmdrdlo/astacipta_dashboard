@@ -97,8 +97,8 @@ export const DocumentCarousel = ({ program }: DocumentCarouselProps) => {
 
       <UniversalModal isOpen={isModalOpen} onClose={handleCloseModal} title={selectedDocument?.nama || 'Pratinjau Dokumen'}>
         {selectedDocument && (
-           <div className="relative h-full flex flex-col">
-            <div className="relative flex-grow w-full h-[60vh] bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+           <div className="relative flex flex-col">
+            <div className="relative flex-grow w-full h-full bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
                 { ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(selectedDocument.nama.split('.').pop()?.toLowerCase() || '') ? (
                     <Image src={selectedDocument.url} alt={selectedDocument.nama}
                       width={1920}
