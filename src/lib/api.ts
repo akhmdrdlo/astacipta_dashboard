@@ -1,12 +1,8 @@
-// src/lib/api.ts
+import { Program, ProdukUnggulan, NavLink } from '@/types';
 
-import { Program,ProdukUnggulan} from '@/data/types';
+const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || 'http://localhost:1337';
+const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || '';
-const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-
-// --- Tipe Data Internal ---
-// Tipe ini sekarang mencerminkan struktur "datar" dari API Anda, TANPA 'attributes'
 // --- Tipe Data Internal (disesuaikan untuk struktur 'attributes') ---
 interface StrapiDataItem<T> {
   id: number;
@@ -24,22 +20,23 @@ const convertRichTextToHtml = (nodes: any[] | undefined): string => {
   return nodes.map(node => {
     if (node.type === 'paragraph') {
       const innerHtml = node.children.map((child: any) => child.bold ? `<strong>${child.text}</strong>` : child.text).join('');
-      return `<p>${innerHtml}</p>`;
+      if (node.children.length === 1 && node.children[0].bold) {
+        return `<h4 class="text-lg font-semibold text-gray-800 mt-4">${node.children[0].text}</h4>`;
+      }
+      return `<p class="text-gray-600">${innerHtml}</p>`;
     }
     if (node.type === 'list') {
       const tag = node.format === 'ordered' ? 'ol' : 'ul';
       const listItems = node.children.map((li: any) => `<li>${li.children.map((child: any) => child.text).join('')}</li>`).join('');
-      return `<${tag}>${listItems}</${tag}>`;
+      return `<${tag} class="list-disc list-inside space-y-1 text-gray-600">${listItems}</${tag}>`;
     }
     return '';
   }).join('');
 };
 
 const getImageUrl = (imageObject: any): string | null => {
-  // Struktur di Strapi Cloud adalah: image.data.attributes.url
   const url = imageObject?.data?.attributes?.url;
   if (url) {
-    // URL dari Strapi Cloud sudah lengkap, tidak perlu ditambahkan API_URL
     return url.startsWith('http') ? url : API_URL + url;
   }
   return null;
@@ -87,19 +84,20 @@ const formatProgramData = (item: StrapiDataItem<any> | null): Program | null => 
   } as Program;
 };
 
-const formatProductData = (item: RawApiProgram | null): ProdukUnggulan | null => {
-    if (!item) return null;
+const formatProductData = (item: StrapiDataItem<any> | null): ProdukUnggulan | null => {
+    if (!item || !item.attributes) return null;
+    const { id, attributes } = item;
     return {
-        id: item.id,
-        documentId: item.documentId,
-        programSlug: item.program?.slug || '',
-        namaProduk: item.namaProduk,
-        gambarProduk: (item.gambarProduk || []).map(getImageUrl).filter(Boolean) as string[],
-        lampiran: (item.lampiran || []).map(getImageUrl).filter(Boolean) as string[],
-        deskripsiProduk: convertRichTextToHtml(item.deskripsiProduk),
-        spesifikasiTeknis: convertRichTextToHtml(item.spesifikasiTeknis),
-        keunggulanKompetitif: convertRichTextToHtml(item.keunggulanKompetitif),
-        linkInformasi: item.linkInformasi || '',
+        id: id.toString(),
+        documentId: attributes.documentId,
+        programSlug: attributes.program?.data?.attributes?.slug || '',
+        namaProduk: attributes.namaProduk,
+        gambarProduk: getMultipleImageUrls(attributes.gambarProduk),
+        lampiran: getMultipleImageUrls(attributes.lampiran),
+        deskripsiProduk: convertRichTextToHtml(attributes.deskripsiProduk),
+        spesifikasiTeknis: convertRichTextToHtml(attributes.spesifikasiTeknis),
+        keunggulanKompetitif: convertRichTextToHtml(attributes.keunggulanKompetitif),
+        linkInformasi: attributes.linkInformasi || '',
     } as ProdukUnggulan;
 }
 
@@ -206,6 +204,36 @@ export async function fetchNavLinks(): Promise<NavLink[]> {
     }
 }
 
+/ --- Fungsi API Publik ---
+
+export async function fetchAllProgramsForSearch(): Promise<Program[]> {
+    try {
+        const res = await fetch(`${API_URL}/api/programs?populate=deep`);
+        if (!res.ok) throw new Error('Gagal mengambil semua data program');
+        const json: StrapiApiResponse<any> = await res.json();
+        const data = json.data;
+        if (!Array.isArray(data)) return [];
+        return data.map(formatProgramData).filter((p): p is Program => p !== null);
+    } catch (error) {
+        console.error("Error saat mengambil semua program untuk pencarian:", error);
+        return [];
+    }
+}
+
+export async function fetchNavLinks(): Promise<NavLink[]> {
+    try {
+        const res = await fetch(`${API_URL}/api/programs?fields[0]=namaProgram&fields[1]=slug`);
+        if (!res.ok) throw new Error('Gagal mengambil data navigasi');
+        const json: StrapiApiResponse<{namaProgram: string, slug: string}> = await res.json();
+        const data = json.data;
+        if (!Array.isArray(data)) return [];
+        return data.map(item => item.attributes);
+    } catch (error) {
+        console.error("Error saat mengambil link navigasi:", error);
+        return [];
+    }
+}
+
 export async function fetchPrograms(): Promise<Program[]> {
   try {
     const res = await fetch(`${API_URL}/api/programs?populate=gambarUtama&sort=updatedAt:desc`);
@@ -234,21 +262,12 @@ export async function fetchProgramBySlug(slug: string): Promise<Program | null> 
   }
 }
 
-
 export async function fetchProductByDocumentId(documentId: string): Promise<ProdukUnggulan | null> {
     try {
-        const populateQuery = new URLSearchParams({
-            'populate[gambarProduk]': 'true',
-            'populate[lampiran]': 'true',
-            'populate[program][populate]': '*',
-        }).toString();
-        const res = await fetch(`${API_URL}/api/produks?filters[documentId][$eq]=${documentId}&${populateQuery}`);
-        if (!res.ok) {
-            const errorBody = await res.text();
-            throw new Error(`Gagal mengambil produk: ${errorBody}`);
-        }
-        const json = await res.json();
-        const data = Array.isArray(json) ? json : json.data;
+        const res = await fetch(`${API_URL}/api/produks?filters[documentId][$eq]=${documentId}&populate=deep`);
+        if (!res.ok) throw new Error(`Gagal mengambil produk dengan documentId: ${documentId}`);
+        const json: StrapiApiResponse<any> = await res.json();
+        const data = json.data;
         if (!Array.isArray(data) || data.length === 0) return null;
         return formatProductData(data[0]);
     } catch (error) {
