@@ -188,22 +188,6 @@ export interface NavLink {
     slug: string;
 }
 
-export async function fetchNavLinks(): Promise<NavLink[]> {
-    try {
-        // Hanya meminta field namaProgram dan slug untuk efisiensi
-        const res = await fetch(`${API_URL}/api/programs?fields[0]=namaProgram&fields[1]=slug`);
-        if (!res.ok) throw new Error('Gagal mengambil data navigasi');
-        const json = await res.json();
-        const data = Array.isArray(json) ? json : json.data;
-        if (!Array.isArray(data)) return [];
-        // Cukup mengembalikan data yang sudah minimal
-        return data;
-    } catch (error) {
-        console.error("Error saat mengambil link navigasi:", error);
-        return [];
-    }
-}
-
 // --- Fungsi API Publik ---
 
 export async function fetchAllProgramsForSearch(): Promise<Program[]> {
