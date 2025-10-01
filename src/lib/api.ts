@@ -1,4 +1,6 @@
-import { Program, ProdukUnggulan, NavLink } from '@/types';
+// src/lib/api.ts
+
+import { Program, ProdukUnggulan } from '@/data/types';
 
 const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || 'http://localhost:1337';
 const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
@@ -11,6 +13,12 @@ interface StrapiDataItem<T> {
 
 interface StrapiApiResponse<T> {
   data: StrapiDataItem<T>[] | StrapiDataItem<T> | null;
+}
+
+// Tipe data baru untuk link navigasi
+export interface NavLink {
+    namaProgram: string;
+    slug: string;
 }
 
 // --- Fungsi Helper ---
@@ -37,6 +45,7 @@ const convertRichTextToHtml = (nodes: any[] | undefined): string => {
 const getImageUrl = (imageObject: any): string | null => {
   const url = imageObject?.data?.attributes?.url;
   if (url) {
+    // URL dari Strapi Cloud sudah lengkap
     return url.startsWith('http') ? url : API_URL + url;
   }
   return null;
@@ -101,54 +110,26 @@ const formatProductData = (item: StrapiDataItem<any> | null): ProdukUnggulan | n
     } as ProdukUnggulan;
 }
 
-// --- FUNGSI UNTUK AI ASSISTANT (YANG DIPERBARUI) ---
 
-/**
- * Mengubah array objek program menjadi satu string teks yang SANGAT DETAIL
- * sebagai konteks untuk Gemini.
- */
+// --- FUNGSI UNTUK AI ASSISTANT ---
+
 export const formatProgramsToTextContext = (programs: Program[]): string => {
-    let context = "Berikut adalah data lengkap dari semua program monitoring Asta Cipta:\n\n";
-
+    let context = "Data Program Asta Cipta:\n\n";
     programs.forEach(p => {
-        const cleanText = (html: string) => html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
-
         context += `--- PROGRAM ---\n`;
-        context += `Nama Program: ${p.namaProgram}\n`;
-        context += `ID: ${p.id}\n`;
-        context += `Slug URL: ${p.slug}\n`;
-        context += `Penanggung Jawab (PIC): ${p.PICProgram}\n`;
+        context += `Nama: ${p.namaProgram}\n`;
+        context += `PIC: ${p.PICProgram}\n`;
         context += `Status: ${p.statusProgram}\n`;
-        context += `Deskripsi: ${cleanText(p.deskripsiLengkap)}\n`;
-        context += `Cakupan: ${cleanText(p.cakupanProgram)}\n`;
-        context += `Anggaran: ${p.anggaran}\n`;
-        context += `Sumber Dana: ${p.sumberDana}\n`;
-        context += `Progress & Tindak Lanjut: ${cleanText(p.progressTindakLanjut)}\n`;
-        context += `Risiko & Hambatan: ${cleanText(p.risikoDanHambatan)}\n`;
-        
-        if (p.daftarMitra && p.daftarMitra.length > 0) {
-            context += `Mitra Kerjasama:\n`;
-            p.daftarMitra.forEach(m => {
-                context += `  - ${m.namaInstansi} (Kategori: ${m.kategori}, Tipe: ${m.tipeKerjasama}, Sejak: ${new Date(m.tahunKerjasama).getFullYear()})\n`;
-            });
+        const cleanDesc = p.deskripsiLengkap.replace(/<[^>]*>?/gm, ' ').trim();
+        context += `Deskripsi: ${cleanDesc}\n`;
+        if (p.daftarMitra?.length > 0) {
+            context += `Mitra: ${p.daftarMitra.map(m => m.namaInstansi).join(', ')}\n`;
         }
-        
-        if (p.potentialMarket && p.potentialMarket.length > 0) {
-            context += `Potensi Pasar (Offtaker):\n`;
-            p.potentialMarket.forEach(market => {
-                context += `  - ${market.namaInstansi}\n`;
-            });
-        }
-
-        if (p.produkUnggulan && p.produkUnggulan.length > 0) {
-            context += `Produk Unggulan:\n`;
-            p.produkUnggulan.forEach(prod => {
-                context += `  - Nama Produk: ${prod.namaProduk}, Deskripsi: ${cleanText(prod.deskripsiProduk)}\n`;
-            });
+        if (p.produkUnggulan?.length > 0) {
+            context += `Produk: ${p.produkUnggulan.map(prod => prod.namaProduk).join(', ')}\n`;
         }
         context += `\n`;
     });
-
     return context;
 };
 
@@ -157,7 +138,7 @@ export async function askGemini(konteks: string, pertanyaan: string): Promise<st
         return "Error: Kunci API Gemini belum dikonfigurasi.";
     }
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-    const systemPrompt = "Anda adalah AI Assistant untuk Dasbor Monitoring Program Asta Cipta. Jawab pertanyaan HANYA berdasarkan konteks data program yang diberikan. Jangan gunakan informasi lain. Jawab dengan ringkas dan profesional dalam Bahasa Indonesia.";
+    const systemPrompt = "Anda adalah AI Assistant untuk Dasbor Asta Cipta. Jawab pertanyaan HANYA berdasarkan konteks data program yang diberikan. Jangan gunakan informasi lain. Jawab dengan ringkas dan profesional dalam Bahasa Indonesia.";
     const payload = {
         contents: [{ parts: [{ text: `KONTEKS:\n${konteks}\n\nPERTANYAAN:\n${pertanyaan}` }] }],
         systemInstruction: { parts: [{ text: systemPrompt }] }
@@ -180,13 +161,6 @@ export async function askGemini(konteks: string, pertanyaan: string): Promise<st
     }
 }
 
-
-// --- Fungsi API Publik ---
-// Tipe data baru untuk link navigasi
-export interface NavLink {
-    namaProgram: string;
-    slug: string;
-}
 
 // --- Fungsi API Publik ---
 
@@ -259,3 +233,4 @@ export async function fetchProductByDocumentId(documentId: string): Promise<Prod
         return null;
     }
 }
+
