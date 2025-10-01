@@ -1,33 +1,50 @@
 // src/lib/api.ts
 
-import { Program, ProdukUnggulan } from '@/data/types';
+import { Program,ProdukUnggulan} from '@/data/types';
 
-const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || 'http://localhost:1337';
-const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+const API_URL = process.env.NEXT_PUBLIC_STRAPI_API_URL || '';
+const GEMINI_API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
 
-// --- Tipe Data Internal (disesuaikan untuk struktur 'attributes') ---
-interface StrapiDataItem<T> {
+// --- Tipe Data Internal ---
+// Tipe ini sekarang mencerminkan struktur "datar" dari API Anda, TANPA 'attributes'
+interface RawApiProgram {
   id: number;
-  attributes: T;
-}
-
-interface StrapiApiResponse<T> {
-  data: StrapiDataItem<T>[] | StrapiDataItem<T> | null;
-}
-
-// Tipe data baru untuk link navigasi
-export interface NavLink {
-    namaProgram: string;
-    slug: string;
+  updatedAt: string;
+  namaProgram: string;
+  slug: string;
+  PICProgram: string;
+  statusProgram?: string;
+  deskripsiProgram?: any[];
+  cakupanProgram?: any[];
+  progressTindakLanjut?: any[];
+  risikoDanHambatan?: any[];
+  prediksiAnggaran?: number | string;
+  sumberDana?: string;
+  gambarUtama?: {
+    url: string;
+    [key: string]: any;
+  };
+  // Properti relasional akan ditambahkan oleh populate=deep
+  [key: string]: any;
 }
 
 // --- Fungsi Helper ---
 
 const convertRichTextToHtml = (nodes: any[] | undefined): string => {
   if (!Array.isArray(nodes)) return '';
+  
   return nodes.map(node => {
     if (node.type === 'paragraph') {
-      const innerHtml = node.children.map((child: any) => child.bold ? `<strong>${child.text}</strong>` : child.text).join('');
+      // Menggabungkan semua anak paragraf menjadi satu string HTML
+      const innerHtml = node.children.map((child: any) => {
+        const text = child.text.replace(/\n/g, '<br>'); // Ganti baris baru dengan <br>
+        if (child.bold) {
+          // Jika teksnya bold, bungkus dengan <strong>
+          return `<strong>${text}</strong>`;
+        }
+        return text;
+      }).join('');
+      // Jika paragraf hanya berisi teks bold, anggap sebagai judul
       if (node.children.length === 1 && node.children[0].bold) {
         return `<h4 class="text-lg font-semibold text-gray-800 mt-4">${node.children[0].text}</h4>`;
       }
@@ -35,101 +52,144 @@ const convertRichTextToHtml = (nodes: any[] | undefined): string => {
     }
     if (node.type === 'list') {
       const tag = node.format === 'ordered' ? 'ol' : 'ul';
-      const listItems = node.children.map((li: any) => `<li>${li.children.map((child: any) => child.text).join('')}</li>`).join('');
+      const listItems = node.children.map((li: any) => {
+        const itemHtml = li.children.map((child: any) => child.text).join('');
+        return `<li>${itemHtml}</li>`;
+      }).join('');
       return `<${tag} class="list-disc list-inside space-y-1 text-gray-600">${listItems}</${tag}>`;
     }
     return '';
   }).join('');
 };
 
-const getImageUrl = (imageObject: any): string | null => {
-  const url = imageObject?.data?.attributes?.url;
-  if (url) {
-    // URL dari Strapi Cloud sudah lengkap
-    return url.startsWith('http') ? url : API_URL + url;
+
+const getImageUrl = (imageObject: { url: string } | undefined): string => {
+  if (imageObject?.url) {
+    // Jika URL sudah lengkap, gunakan langsung. Jika tidak, tambahkan API_URL.
+    return imageObject.url.startsWith('http') ? imageObject.url : API_URL + imageObject.url;
   }
-  return null;
+  return '/images/placeholder.png'; // Fallback
 };
 
-const getMultipleImageUrls = (mediaField: any): string[] => {
-    if (!mediaField?.data || !Array.isArray(mediaField.data)) return [];
-    return mediaField.data.map((img: any) => getImageUrl({ data: img })).filter((url): url is string => url !== null);
-}
 
-const formatProgramData = (item: StrapiDataItem<any> | null): Program | null => {
-  if (!item || !item.attributes) return null;
+/**
+ * Fungsi utama untuk memformat data dari API Strapi menjadi format frontend.
+ */
+const formatProgramData = (item: RawApiProgram | null): Program | null => {
+  if (!item) {
+    return null;
+  }
 
-  const { id, attributes } = item;
-
+  // Sekarang kita mengakses properti langsung dari 'item', bukan 'item.attributes'
   return {
-    id,
-    updatedAt: attributes.updatedAt,
-    namaProgram: attributes.namaProgram,
-    slug: attributes.slug,
-    PICProgram: attributes.PICProgram,
-    statusProgram: attributes.statusProgram || 'Perencanaan',
-    gambarUtama: getImageUrl(attributes.gambarUtama) || '/images/placeholder.png',
-    deskripsiLengkap: convertRichTextToHtml(attributes.deskripsiLengkap || attributes.deskripsiProgram),
-    cakupanProgram: convertRichTextToHtml(attributes.cakupanProgram),
-    progressTindakLanjut: convertRichTextToHtml(attributes.progressTindakLanjut),
-    risikoDanHambatan: convertRichTextToHtml(attributes.risikoDanHambatan),
-    anggaran: Number(attributes.anggaran || attributes.prediksiAnggaran) || 0,
-    sumberDana: attributes.sumberDana || '-',
-    Roadmap: (attributes.Roadmap || []).map((roadmap: any) => ({ ...roadmap, roadmap: getImageUrl(roadmap.roadmap) })),
-    daftarMitra: (attributes.Mitra || attributes.daftarMitra || []).map((mitra: any) => ({ ...mitra, logoInstansi: getImageUrl(mitra.logoInstansi || mitra.logo) })),
-    daftarMitraPotensial: (attributes.MitraPotensial || attributes.daftarMitraPotensial || []).map((mitra: any) => ({ ...mitra, logoInstansi: getImageUrl(mitra.logoInstansi || mitra.logo) })),
-    potentialMarket: (attributes.PasarPotensial || attributes.potentialMarket || []).map((market: any) => ({ ...market, logoInstansi: getImageUrl(market.logoInstansi) })),
-    produkUnggulan: (attributes.produks?.data || []).map((prod: StrapiDataItem<any>) => ({
-      ...prod.attributes,
-      id: prod.id.toString(),
-      documentId: prod.attributes.documentId,
-      gambarProduk: getMultipleImageUrls(prod.attributes.gambarProduk),
-      deskripsiProduk: convertRichTextToHtml(prod.attributes.deskripsiProduk),
+    id: item.id,
+    updatedAt: item.updatedAt,
+    namaProgram: item.namaProgram,
+    slug: item.slug,
+    PICProgram: item.PICProgram,
+    statusProgram: item.statusProgram || 'Perencanaan',
+    gambarUtama: getImageUrl(item.gambarUtama),
+    deskripsiLengkap: convertRichTextToHtml(item.deskripsiProgram),
+    cakupanProgram: convertRichTextToHtml(item.cakupanProgram),
+    progressTindakLanjut: convertRichTextToHtml(item.progressTindakLanjut),
+    risikoDanHambatan: convertRichTextToHtml(item.risikoDanHambatan),
+    anggaran: Number(item.prediksiAnggaran) || 0,
+    sumberDana: item.sumberDana || '-',
+    Roadmap: (item.Roadmap || []).map((roadmap: any) => ({
+      id: roadmap.id,
+      judulRoadmap: roadmap.judulRoadmap,
+      roadmap: getImageUrl(roadmap.roadmap)
     })),
-    dokumenTerkait: (attributes.dokumenTerkait?.data || []).map((doc: any) => ({
-        nama: doc.attributes.name,
-        url: getImageUrl({ data: doc }) || ''
+    daftarMitra: (item.Mitra || []).map((mitra: any) => ({
+      ...mitra,
+      logoInstansi: getImageUrl(mitra.logoInstansi)
+    })),
+    daftarMitraPotensial: (item.daftarMitraPotensial || []).map((mitra: any) => ({
+      ...mitra,
+      logoInstansi: getImageUrl(mitra.logoInstansi)
+    })),
+    potentialMarket: (item.PasarPotensial || []).map((market: any) => ({
+      ...market,
+      logoInstansi: getImageUrl(market.logoInstansi),
+    })),
+    dokumenTerkait: (item.dokumenTerkait || []).map((doc: any) => ({
+        nama: doc.name,
+        url: getImageUrl(doc)
+    })),
+    produkUnggulan: (item.produks || []).map((prod: any) => ({
+      ...prod,
+      id: prod.id,
+      documentId: prod.documentId,
+      deskripsiProduk: convertRichTextToHtml(prod.deskripsiProduk),
+      gambarProduk: (prod.gambarProduk || []).map(getImageUrl).filter(Boolean) as string[],
     })),
   } as Program;
 };
 
-const formatProductData = (item: StrapiDataItem<any> | null): ProdukUnggulan | null => {
-    if (!item || !item.attributes) return null;
-    const { id, attributes } = item;
+const formatProductData = (item: RawApiProgram | null): ProdukUnggulan | null => {
+    if (!item) return null;
     return {
-        id: id.toString(),
-        documentId: attributes.documentId,
-        programSlug: attributes.program?.data?.attributes?.slug || '',
-        namaProduk: attributes.namaProduk,
-        gambarProduk: getMultipleImageUrls(attributes.gambarProduk),
-        lampiran: getMultipleImageUrls(attributes.lampiran),
-        deskripsiProduk: convertRichTextToHtml(attributes.deskripsiProduk),
-        spesifikasiTeknis: convertRichTextToHtml(attributes.spesifikasiTeknis),
-        keunggulanKompetitif: convertRichTextToHtml(attributes.keunggulanKompetitif),
-        linkInformasi: attributes.linkInformasi || '',
+        id: item.id,
+        documentId: item.documentId,
+        programSlug: item.program?.slug || '',
+        namaProduk: item.namaProduk,
+        gambarProduk: (item.gambarProduk || []).map(getImageUrl).filter(Boolean) as string[],
+        lampiran: (item.lampiran || []).map(getImageUrl).filter(Boolean) as string[],
+        deskripsiProduk: convertRichTextToHtml(item.deskripsiProduk),
+        spesifikasiTeknis: convertRichTextToHtml(item.spesifikasiTeknis),
+        keunggulanKompetitif: convertRichTextToHtml(item.keunggulanKompetitif),
+        linkInformasi: item.linkInformasi || '',
     } as ProdukUnggulan;
 }
 
+// --- FUNGSI UNTUK AI ASSISTANT (YANG DIPERBARUI) ---
 
-// --- FUNGSI UNTUK AI ASSISTANT ---
-
+/**
+ * Mengubah array objek program menjadi satu string teks yang SANGAT DETAIL
+ * sebagai konteks untuk Gemini.
+ */
 export const formatProgramsToTextContext = (programs: Program[]): string => {
-    let context = "Data Program Asta Cipta:\n\n";
+    let context = "Berikut adalah data lengkap dari semua program monitoring Asta Cipta:\n\n";
+
     programs.forEach(p => {
+        const cleanText = (html: string) => html.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+
         context += `--- PROGRAM ---\n`;
-        context += `Nama: ${p.namaProgram}\n`;
-        context += `PIC: ${p.PICProgram}\n`;
+        context += `Nama Program: ${p.namaProgram}\n`;
+        context += `ID: ${p.id}\n`;
+        context += `Slug URL: ${p.slug}\n`;
+        context += `Penanggung Jawab (PIC): ${p.PICProgram}\n`;
         context += `Status: ${p.statusProgram}\n`;
-        const cleanDesc = p.deskripsiLengkap.replace(/<[^>]*>?/gm, ' ').trim();
-        context += `Deskripsi: ${cleanDesc}\n`;
-        if (p.daftarMitra?.length > 0) {
-            context += `Mitra: ${p.daftarMitra.map(m => m.namaInstansi).join(', ')}\n`;
+        context += `Deskripsi: ${cleanText(p.deskripsiLengkap)}\n`;
+        context += `Cakupan: ${cleanText(p.cakupanProgram)}\n`;
+        context += `Anggaran: ${p.anggaran}\n`;
+        context += `Sumber Dana: ${p.sumberDana}\n`;
+        context += `Progress & Tindak Lanjut: ${cleanText(p.progressTindakLanjut)}\n`;
+        context += `Risiko & Hambatan: ${cleanText(p.risikoDanHambatan)}\n`;
+        
+        if (p.daftarMitra && p.daftarMitra.length > 0) {
+            context += `Mitra Kerjasama:\n`;
+            p.daftarMitra.forEach(m => {
+                context += `  - ${m.namaInstansi} (Kategori: ${m.kategori}, Tipe: ${m.tipeKerjasama}, Sejak: ${new Date(m.tahunKerjasama).getFullYear()})\n`;
+            });
         }
-        if (p.produkUnggulan?.length > 0) {
-            context += `Produk: ${p.produkUnggulan.map(prod => prod.namaProduk).join(', ')}\n`;
+        
+        if (p.potentialMarket && p.potentialMarket.length > 0) {
+            context += `Potensi Pasar (Offtaker):\n`;
+            p.potentialMarket.forEach(market => {
+                context += `  - ${market.namaInstansi}\n`;
+            });
+        }
+
+        if (p.produkUnggulan && p.produkUnggulan.length > 0) {
+            context += `Produk Unggulan:\n`;
+            p.produkUnggulan.forEach(prod => {
+                context += `  - Nama Produk: ${prod.namaProduk}, Deskripsi: ${cleanText(prod.deskripsiProduk)}\n`;
+            });
         }
         context += `\n`;
     });
+
     return context;
 };
 
@@ -138,7 +198,7 @@ export async function askGemini(konteks: string, pertanyaan: string): Promise<st
         return "Error: Kunci API Gemini belum dikonfigurasi.";
     }
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
-    const systemPrompt = "Anda adalah AI Assistant untuk Dasbor Asta Cipta. Jawab pertanyaan HANYA berdasarkan konteks data program yang diberikan. Jangan gunakan informasi lain. Jawab dengan ringkas dan profesional dalam Bahasa Indonesia.";
+    const systemPrompt = "Anda adalah AI Assistant untuk Dasbor Monitoring Program Asta Cipta. Jawab pertanyaan HANYA berdasarkan konteks data program yang diberikan. Jangan gunakan informasi lain. Jawab dengan ringkas dan profesional dalam Bahasa Indonesia.";
     const payload = {
         contents: [{ parts: [{ text: `KONTEKS:\n${konteks}\n\nPERTANYAAN:\n${pertanyaan}` }] }],
         systemInstruction: { parts: [{ text: systemPrompt }] }
@@ -163,29 +223,22 @@ export async function askGemini(konteks: string, pertanyaan: string): Promise<st
 
 
 // --- Fungsi API Publik ---
-
-export async function fetchAllProgramsForSearch(): Promise<Program[]> {
-    try {
-        const res = await fetch(`${API_URL}/api/programs?populate=deep`);
-        if (!res.ok) throw new Error('Gagal mengambil semua data program');
-        const json: StrapiApiResponse<any> = await res.json();
-        const data = json.data;
-        if (!Array.isArray(data)) return [];
-        return data.map(formatProgramData).filter((p): p is Program => p !== null);
-    } catch (error) {
-        console.error("Error saat mengambil semua program untuk pencarian:", error);
-        return [];
-    }
+// Tipe data baru untuk link navigasi
+export interface NavLink {
+    namaProgram: string;
+    slug: string;
 }
 
 export async function fetchNavLinks(): Promise<NavLink[]> {
     try {
+        // Hanya meminta field namaProgram dan slug untuk efisiensi
         const res = await fetch(`${API_URL}/api/programs?fields[0]=namaProgram&fields[1]=slug`);
         if (!res.ok) throw new Error('Gagal mengambil data navigasi');
-        const json: StrapiApiResponse<{namaProgram: string, slug: string}> = await res.json();
-        const data = json.data;
+        const json = await res.json();
+        const data = Array.isArray(json) ? json : json.data;
         if (!Array.isArray(data)) return [];
-        return data.map(item => item.attributes);
+        // Cukup mengembalikan data yang sudah minimal
+        return data;
     } catch (error) {
         console.error("Error saat mengambil link navigasi:", error);
         return [];
@@ -196,8 +249,9 @@ export async function fetchPrograms(): Promise<Program[]> {
   try {
     const res = await fetch(`${API_URL}/api/programs?populate=gambarUtama&sort=updatedAt:desc`);
     if (!res.ok) throw new Error('Gagal mengambil data program');
-    const json: StrapiApiResponse<any> = await res.json();
-    const data = json.data;
+    const json = await res.json();
+    // Memastikan kita menangani kedua kemungkinan format respons API
+    const data = Array.isArray(json) ? json : json.data;
     if (!Array.isArray(data)) return [];
     return data.map(formatProgramData).filter((p): p is Program => p !== null);
   } catch (error) {
@@ -208,10 +262,26 @@ export async function fetchPrograms(): Promise<Program[]> {
 
 export async function fetchProgramBySlug(slug: string): Promise<Program | null> {
   try {
-    const res = await fetch(`${API_URL}/api/programs?filters[slug][$eq]=${slug}&populate=deep`);
-    if (!res.ok) throw new Error(`Gagal mengambil program dengan slug: ${slug}`);
-    const json: StrapiApiResponse<any> = await res.json();
-    const data = json.data;
+    const populateQuery = new URLSearchParams({
+        'populate[gambarUtama]': 'true',
+        'populate[Roadmap][populate]':'roadmap',
+        'populate[Mitra][populate]': 'logoInstansi',
+        'populate[MitraPotensial][populate]': 'logoInstansi', 
+        'populate[PasarPotensial][populate]': 'logoInstansi',
+        'populate[produks][populate]': '*',
+        'populate[dokumenTerkait]': 'true',
+    }).toString();
+    
+    const res = await fetch(`${API_URL}/api/programs?filters[slug][$eq]=${slug}&${populateQuery}`);
+
+    if (!res.ok) {
+      const errorBody = await res.text();
+      console.error("API Error Response:", errorBody);
+      throw new Error(`Gagal mengambil program dengan slug: ${slug}. Status: ${res.status}`);
+    }
+
+    const json = await res.json();
+    const data = Array.isArray(json) ? json : json.data;
     if (!Array.isArray(data) || data.length === 0) return null;
     return formatProgramData(data[0]); 
   } catch (error) {
@@ -222,10 +292,18 @@ export async function fetchProgramBySlug(slug: string): Promise<Program | null> 
 
 export async function fetchProductByDocumentId(documentId: string): Promise<ProdukUnggulan | null> {
     try {
-        const res = await fetch(`${API_URL}/api/produks?filters[documentId][$eq]=${documentId}&populate=deep`);
-        if (!res.ok) throw new Error(`Gagal mengambil produk dengan documentId: ${documentId}`);
-        const json: StrapiApiResponse<any> = await res.json();
-        const data = json.data;
+        const populateQuery = new URLSearchParams({
+            'populate[gambarProduk]': 'true',
+            'populate[lampiran]': 'true',
+            'populate[program][populate]': '*',
+        }).toString();
+        const res = await fetch(`${API_URL}/api/produks?filters[documentId][$eq]=${documentId}&${populateQuery}`);
+        if (!res.ok) {
+            const errorBody = await res.text();
+            throw new Error(`Gagal mengambil produk: ${errorBody}`);
+        }
+        const json = await res.json();
+        const data = Array.isArray(json) ? json : json.data;
         if (!Array.isArray(data) || data.length === 0) return null;
         return formatProductData(data[0]);
     } catch (error) {
@@ -233,4 +311,3 @@ export async function fetchProductByDocumentId(documentId: string): Promise<Prod
         return null;
     }
 }
-
