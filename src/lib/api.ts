@@ -204,7 +204,7 @@ export async function fetchNavLinks(): Promise<NavLink[]> {
     }
 }
 
-/ --- Fungsi API Publik ---
+// --- Fungsi API Publik ---
 
 export async function fetchAllProgramsForSearch(): Promise<Program[]> {
     try {
