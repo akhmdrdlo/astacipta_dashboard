@@ -52,7 +52,7 @@ export default async function Home() {
       <section className="container mx-auto px-6 py-16">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-800 relative inline-block pb-2">
-            8 Program Utama Asta Cita
+            8 Program Utama Asta Cita Len
             <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-2/3 h-1 bg-red-600"></span>
           </h2>
         </div>

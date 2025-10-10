@@ -45,7 +45,7 @@ export default function Loading() {
         {/* Kontainer untuk teks agar animasi tidak "melompat" */}
         <div className="h-12 overflow-hidden">
           <h1 className="text-2xl font-bold text-gray-800 tracking-wider animate-text-slide-up">
-            Dashboard Asta Cipta...
+            Dashboard Asta Cita Len...
           </h1>
         </div>
         
