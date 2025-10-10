@@ -1,5 +1,5 @@
 // src/components/ProgramCard.tsx
-import type { Program } from '@/data/types'; // <-- PERBAIKAN: Menggunakan path alias '@/' yang benar
+import type { Program } from '@/data/types'; // Menggunakan path alias '@/' yang lebih modern
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -8,14 +8,15 @@ interface ProgramCardProps {
 }
 
 export const ProgramCard = ({ program }: ProgramCardProps) => {
-  // Menambahkan gambar fallback untuk mencegah error jika 'gambarUtama' tidak ada
+  // Menambahkan gambar fallback untuk mencegah error jika 'gambarUtama' null atau undefined
   const imageUrl = program.gambarUtama || '/images/placeholder.png';
 
   return (
     <Link href={`/program/${program.slug}`}>
-      <div className="relative h-80 w-full rounded-xl overflow-hidden group shadow-lg transform hover:-translate-y-1 transition-transform duration-300 ease-in-out">
+      <div className="relative h-80 w-full rounded-xl overflow-hidden group shadow-lg transform hover:-translate-y-1 transition-transform duration-300 ease-in-out bg-gray-200">
         {/* Gambar Latar */}
         <Image
+          key={imageUrl} // Menambahkan key untuk memastikan gambar di-update dengan benar
           src={imageUrl}
           alt={`Gambar untuk ${program.namaProgram}`}
           layout="fill"
